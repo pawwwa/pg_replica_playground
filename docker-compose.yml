@@ -1,0 +1,141 @@
+version: "3.9"
+
+services:
+  postgres:
+    build:
+      context: ./db
+      dockerfile: Dockerfile
+    container_name: database
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: privat_assignment
+    ports:
+      - "5432:5432"
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=logical"
+      - "-c"
+      - "max_wal_senders=10"
+      - "-c"
+      - "max_replication_slots=10"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  migrations:
+    build:
+      context: ./db
+      dockerfile: Dockerfile.migrations
+    container_name: migrations
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: privat_assignment
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker-operation-seeder:
+    build:
+      context: ./workers
+      dockerfile: Dockerfile
+    container_name: worker-operation-seeder
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: privat_assignment
+    entrypoint : ["/workers/worker_seeder.sh", "100000"]
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+
+  worker-operation-create:
+    build:
+      context: ./workers
+      dockerfile: Dockerfile
+    container_name: worker-operation-create
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: privat_assignment
+    entrypoint : ["/workers/worker_create_operation.sh", "5"]
+    depends_on:
+      worker-operation-seeder:
+        condition: service_completed_successfully
+
+  worker-operation-state:
+    build:
+      context: ./workers
+      dockerfile: Dockerfile
+    container_name: worker-operation-state
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: privat_assignment
+    entrypoint : ["/workers/worker_change_operation_state_by_time.sh", "3"]
+    depends_on:
+      worker-operation-seeder:
+        condition: service_completed_successfully
+
+  replica:
+    build:
+      context: ./replica
+      dockerfile: Dockerfile
+    container_name: replica
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: replica
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+    ports:
+      - "5433:5432"  # 5433!
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    volumes:
+      - replica_data:/var/lib/postgresql/data
+
+  replica-setup:
+    build:
+      context: ./replica
+      dockerfile: Dockerfile.setup
+    container_name: replica-setup
+    environment:
+      POSTGRES_HOST: replica
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: replica
+      PRIMARY_HOST: postgres
+      PRIMARY_PORT: 5432
+      PRIMARY_DB: privat_assignment
+      PRIMARY_USER: postgres
+      PRIMARY_PASSWORD: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+      replica:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  replica_data:

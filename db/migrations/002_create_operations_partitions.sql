@@ -1,0 +1,21 @@
+\connect privat_assignment
+
+CREATE TABLE IF NOT EXISTS operations_default
+    PARTITION OF operations
+    DEFAULT;
+
+CREATE TABLE IF NOT EXISTS operations_2025_08
+    PARTITION OF operations
+    FOR VALUES FROM ('2025-08-01') TO ('2025-9-01');
+
+CREATE TABLE IF NOT EXISTS operations_2025_09
+    PARTITION OF operations
+    FOR VALUES FROM ('2025-09-01') TO ('2025-10-01');
+
+CREATE TABLE IF NOT EXISTS operations_2025_10
+    PARTITION OF operations
+    FOR VALUES FROM ('2025-10-01') TO ('2025-11-01');
+
+CREATE TABLE IF NOT EXISTS operations_2025_11
+    PARTITION OF operations
+    FOR VALUES FROM ('2025-11-01') TO ('2025-12-01');

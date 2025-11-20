@@ -1,0 +1,13 @@
+FROM alpine:3.20
+
+RUN apk add --no-cache bash postgresql-client
+
+WORKDIR /db
+
+COPY migrations/* /migrations/
+COPY functions/* /migrations/functions/
+
+COPY migrate.sh /db/migrate.sh
+RUN chmod +x /db/migrate.sh
+
+CMD ["/db/migrate.sh"]
